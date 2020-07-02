@@ -1,0 +1,14 @@
+#!/bin/sh
+# Job name
+#SBATCH --job-name=ml
+# User info
+#SBATCH --mail-user=zenalapp@umich.edu
+#SBATCH --mail-type=BEGIN,END,NONE,FAIL,REQUEUE
+#SBATCH --export=ALL
+#SBATCH --partition=standard
+#SBATCH --account=esnitkin1
+# Number of cores, amount of memory, and walltime
+#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=1 --mem=1g --time=10:00:00
+
+# Job commands
+/nfs/esnitkin/bin_group/miniconda3/bin/snakemake --latency-wait 20 --profile config/slurm -s snakefile 

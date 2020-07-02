@@ -1,0 +1,34 @@
+name: ml
+channels:
+  - conda-forge
+  - bioconda
+  - default
+  - r
+dependencies:
+  - r-tidyverse
+  - r-tictoc
+  - r-caret
+  - r-rpart
+  - r-xgboost
+  - r-randomForest
+  - r-kernlab
+  - r-LiblineaR
+  - r-pROC
+  - r-reshape2
+  - r-ape
+  - bioconductor-genbankr
+  - bioconductor-Biostrings
+  - bioconductor-GenomeInfoDbData
+  - r-phytools
+  - r-future.apply
+  - r-docopt
+  - r-e1071
+  - r-MLmetrics
+  - r-ggsignif
+  - r-vegan
+  - r-gtools
+  - r-devtools
+  - r-cowplot
+  - r-pheatmap
+  - r-ggtree
+  - r-PRROC

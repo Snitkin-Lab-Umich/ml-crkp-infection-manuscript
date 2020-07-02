@@ -1,0 +1,292 @@
+# ---- Paths etc. ---- 
+PATIENT = "../../Regional_KPC_transmission/data/459_patients_data_for_posting.xls"
+SNPCODE = "../../../Sequence_data/consensus/2019_08_07_Penn_All_variant_calling/2020_02_13_16_29_09_core_results/data_matrix/matrices/SNP_matrix_code.csv"
+SNPALLELE = "../../../Sequence_data/consensus/2019_08_07_Penn_All_variant_calling/2020_02_13_16_29_09_core_results/data_matrix/matrices/SNP_matrix_allele_new.csv"
+INDELCODE = "../../../Sequence_data/consensus/2019_08_07_Penn_All_variant_calling/2020_02_13_16_29_09_core_results/data_matrix/matrices/Indel_matrix_code.csv"
+INDELALLELE = "../../../Sequence_data/consensus/2019_08_07_Penn_All_variant_calling/2020_02_13_16_29_09_core_results/data_matrix/matrices/Indel_matrix_allele.csv"
+INS = "../2019-09-25_panisa/ISFinder.txt"
+GBF = "/nfs/esnitkin/bin_group/variant_calling_bin/reference/KPNIH1/KPNIH1.gbf"
+PAN = "../2019-08-16_pangenome_analysis/gene_presence_absence.Rtab"
+TREE = "../../../Sequence_data/consensus/2019_08_07_Penn_All_variant_calling/2020_02_13_16_29_09_core_results/gubbins/iqtree_results/2020_02_13_16_29_09_KPNIH1_genome_aln_w_alt_allele_unmapped.treefile"
+KLEBORATE = '../2019-05-09_kleborate/crkp_all_kleborate_results.txt'
+OUTCOMECOLS = ["infection","source"]
+OUTCOMES = ["infection"]#,"blood"]#,"resp","urine"]
+SOURCE = ["resp","urine"]
+FEATURES = ["patient","genomic","gene","kleborate","patient-kleborate"]
+FEATUREDIRS = ["patient","genomic","genomic","genomic","combined"]
+METHODS = ["lr"]
+NREPS = 100
+SEEDS = range(NREPS)
+SUMMARYFILE = "results/auc_summary.tsv"
+seed_dat = [0,1]
+dat=['infection_patient-kleborate','infection-resp_patient-kleborate','infection-urine_patient-kleborate']
+corr=[0.4,0.5,0.6]
+pval=[0,0.01]
+
+import os
+SCRIPTS = os.listdir('scripts')
+
+localrules: all, make_outcome_file 
+
+rule all:
+    input:
+        expand("data/combined/infection_{feature}.tsv",feature=["patient","genomic","gene","kleborate","patient-kleborate"]),
+        expand("data/combined/infection-{source}_patient-kleborate.tsv",source=SOURCE),
+        expand("results/infection_{feature}_{method}/infection_{feature}_{method}_{seed}.RData", outcome=OUTCOMES, feature=FEATURES, method = METHODS, seed = SEEDS),
+        expand("results/infection-{source}_patient-kleborate_{method}/infection-{source}_patient-kleborate_{method}_{seed}.RData", source=SOURCE, method = METHODS, seed = SEEDS),
+        expand("results/infection-{source}_patient_{method}/infection-{source}_patient_{method}_{seed}.RData", source=SOURCE, method = METHODS, seed = SEEDS),
+        expand("results/infection-{source}_kleborate_{method}/infection-{source}_kleborate_{method}_{seed}.RData", source=SOURCE, method = METHODS, seed = SEEDS),
+        SUMMARYFILE,
+        expand("results/figures/cv_rocs/infection_{feature}_{method}_cv_rocs.pdf", feature=FEATURES, method = METHODS),
+        'results/figures/aucs/aucs.pdf',
+        'results/figures/importances/infection_patient-kleborate_lr_importances.pdf',
+        'results/figures/importances/urine-resp_importances.pdf',
+        expand('results/permutation_importance/{dat}_{corr}_{pval}.tsv',dat=dat,corr=corr,pval=pval)
+
+rule make_outcome_file:
+    output:
+        "outcome_cols.tsv"
+    run:
+        with open(output[0], 'w') as f:
+            for item in OUTCOMECOLS:
+                f.write("%s\n" % item)
+
+# ---- Prep outcomes and features ----
+
+rule prep_outcomes:
+    input:
+        PATIENT,
+        "outcome_cols.tsv",
+        "data/to_keep.tsv"
+    output:
+        "data/outcomes/outcomes.tsv"
+    script:
+        "scripts/prep_outcomes.R"
+
+rule keep_patients:
+    input:
+        PATIENT,
+        KLEBORATE 
+    output:
+        "data/to_keep.tsv"
+    script:
+        "scripts/to_keep.R"
+
+rule prep_patient:
+    input:
+        PATIENT,
+        "data/to_keep.tsv"
+    output:
+        "data/features/patient/patient_features.tsv"
+    script:
+        "scripts/prep_patient.R"
+
+rule prep_snps:
+    input:
+        SNPCODE,
+        SNPALLELE,
+        TREE,
+        "data/to_keep.tsv",
+    output:
+        "data/features/genomic/snps.tsv",
+        "data/features/genomic/snps_gene.tsv"
+    script:
+        "scripts/prep_snps.R"
+
+rule prep_indels:
+    input:
+        INDELCODE,
+        INDELALLELE,
+        TREE,
+        "data/to_keep.tsv",
+    output:
+        "data/features/genomic/indels.tsv",
+        "data/features/genomic/indels_gene.tsv"
+    script:
+        "scripts/prep_indels.R"
+
+rule prep_insertions:
+    input:
+        INS,
+        GBF,
+        "data/to_keep.tsv"
+    output:
+        "data/features/genomic/insertions.tsv",
+        "data/features/genomic/insertions_gene.tsv",
+    script:
+        "scripts/prep_insertions.R"
+
+rule prep_pangenome:
+    input:
+        PAN,
+        "data/to_keep.tsv"
+    output:
+        "data/features/genomic/pangenome.tsv",
+    script:
+        "scripts/prep_pangenome.R"
+
+rule merge_genomic:
+    input:
+        "data/features/genomic/snps.tsv",
+        "data/features/genomic/indels.tsv",
+        "data/features/genomic/insertions.tsv",
+        "data/features/genomic/pangenome.tsv"
+    output:
+        "data/features/genomic/genomic_features.tsv"
+    script:
+        "scripts/merge_genomic.R"
+
+rule collapse_genes:
+    input:
+        expand("data/features/genomic/{genomic}_gene.tsv",genomic=["snps","indels","insertions"]),
+	"data/features/genomic/pangenome.tsv"
+    output:
+        "data/features/genomic/gene_features.tsv"
+    script:
+        "scripts/collapse_genes.R"
+
+rule prep_kleborate:
+    input:
+        KLEBORATE,
+        "data/to_keep.tsv"
+    output:
+        "data/features/genomic/kleborate_features.tsv",
+        "data/features/genomic/kleborate_genes_features.tsv"
+    script:
+        "scripts/prep_kleborate.R"
+
+rule merge_patient_genomic:
+    input:
+        "data/features/patient/patient_features.tsv",
+        "data/features/genomic/{genomic}_features.tsv"
+    output:
+        "data/features/combined/patient-{genomic}_features.tsv"
+    script:
+        "scripts/merge_patient_genomic.R"
+
+rule merge_outcome_features:
+    input:
+        "data/outcomes/outcomes.tsv",
+        expand("data/features/{feature}_features.tsv",feature=[x+'/'+y for x,y in zip(FEATUREDIRS,FEATURES)]),
+        "scripts/merge_outcome_features.R"
+    output:
+        expand("data/combined/infection_{feature}.tsv",feature=FEATURES) #,
+    script:
+        "scripts/merge_outcome_features.R"
+
+rule get_source_specific_subsets:
+    input:
+        PATIENT,
+        "data/combined/infection_patient-kleborate.tsv",
+        "data/combined/infection_patient.tsv",
+        "data/combined/infection_kleborate.tsv"
+    output:
+        expand("data/combined/infection-{source}_patient-kleborate.tsv",source=SOURCE),
+        expand("data/combined/infection-{source}_patient.tsv",source=SOURCE),
+        expand("data/combined/infection-{source}_kleborate.tsv",source=SOURCE),
+    script:
+        "scripts/get_source-specific_subsets.R"
+
+# ---- Run machine learning ----
+
+rule machine_learning:
+    input:
+        "data/combined/{dataset}.tsv",
+        "data/hyperparams/{dataset}_{model}_hyperparameters.csv",
+        "scripts/machine_learning.R",
+        rules.merge_outcome_features.output,
+        rules.get_source_specific_subsets.output 
+    output:
+        "results/{dataset}_{model}/{dataset}_{model}_{seed}.RData"
+    shell:
+        "Rscript scripts/machine_learning.R {input[0]} {input[1]} {output}" 
+
+# --- summarize and plot results ----
+
+rule summarize_results:
+    input:
+        expand("results/infection_{feature}_{method}/infection_{feature}_{method}_{seed}.RData", outcome=OUTCOMES, feature=FEATURES, method = METHODS, seed = SEEDS),
+        expand("results/infection-{source}_patient-kleborate_{method}/infection-{source}_patient-kleborate_{method}_{seed}.RData", source=SOURCE, method = METHODS, seed = SEEDS)
+    output:
+        SUMMARYFILE,
+        "results/figures/test_aucs_boxplot.pdf",
+        "results/test_aucs.tsv"
+    script:
+        "scripts/summarize_results.R"
+
+rule get_importances:
+    input:
+        expand("results/infection_{feature}_{method}/infection_{feature}_{method}_{seed}.RData", outcome=OUTCOMES, feature=FEATURES, method = METHODS, seed = SEEDS),
+        expand("results/infection-{source}_patient-kleborate_{method}/infection-{source}_patient-kleborate_{method}_{seed}.RData", source=SOURCE, method = METHODS, seed = SEEDS) 
+    output:
+        'results/median_importances.tsv',
+        'results/importances.tsv'
+    script:
+        "scripts/get_importances.R"
+
+rule plot_cv_rocs:
+    input:
+        expand("results/infection_{feature}_{method}/infection_{feature}_{method}_{seed}.RData", outcome=OUTCOMES, feature=FEATURES, method = METHODS, seed = SEEDS),
+        expand("results/infection-{source}_patient-kleborate_{method}/infection-{source}_patient-kleborate_{method}_{seed}.RData", source=SOURCE, method = METHODS, seed = SEEDS)
+    output:
+        expand("results/figures/cv_rocs/infection_{feature}_{method}_cv_rocs.pdf", feature=FEATURES, method = METHODS),
+        expand("results/figures/cv_rocs/infection-{source}_patient-kleborate_{method}_cv_rocs.pdf", source=SOURCE, method = METHODS) 
+    script:
+        "scripts/plot_cv_rocs.R"
+
+rule plot_aucs:
+    input:
+        'results/auc_summary.tsv'
+    output:
+        'results/figures/aucs/{aucs}.pdf'
+    script:
+        "scripts/plot_aucs.R"
+
+rule plot_importances:
+    input:
+        'results/importances.tsv',
+        'results/median_importances.tsv'
+    output:
+        'results/figures/importances/infection_patient-kleborate_lr_importances.pdf',
+        'results/figures/importances/infection-resp_patient-kleborate_lr_importances.pdf',
+        'results/figures/importances/infection-urine_patient-kleborate_lr_importances.pdf'
+    script:
+        'scripts/plot_importance_subset.R'
+
+rule compare_importances:
+    input:
+        'results/median_importances.tsv'
+    output:
+        'results/figures/importances/urine-resp_importances.pdf'
+    script:
+        "scripts/compare_importances.R"
+
+dat=['infection_patient-kleborate','infection-resp_patient-kleborate','infection-urine_patient-kleborate']
+corr=[0.5,0.6,0.7,0.8,0.9,1]
+pval=[1] 
+
+rule permutation_importance:
+    input:
+        'data/combined/{dat}.tsv'
+    output:
+        'results/permutation_importance/{dat}_{corr}_{pval}.tsv' 
+    script:
+        'scripts/permutation_importance.R'
+
+rule run_perm:
+  input:
+    expand('results/permutation_importance/{dat}_{corr}_{pval}.tsv',dat=dat,corr=corr,pval=pval)
+
+rule plot_roc_prc:
+    input:
+    output:
+        expand("results/figures/rocs/infection_{feature}_{method}_roc.pdf", feature=FEATURES, method = METHODS),
+        expand("results_randomized/figures/rocs/infection_{feature}_{method}_{seed_dat}_roc.pdf", feature=FEATURES, method = METHODS, seed_dat=seed_dat)
+    script:
+        "scripts/plot_roc_prc.R"
+
+rule get_train_aucs:
+    output:
+       'results/train_aucs.tsv'
+    script:
+        'scripts/get_train_aucs.R'

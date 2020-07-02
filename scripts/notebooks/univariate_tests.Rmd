@@ -1,0 +1,239 @@
+---
+#title: "Univariate tests table ST258 & table of counts of STs"
+#author: "Zena Lapp"
+#date: "3/14/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning = F, message = F)
+```
+
+**Table 1:** Bivariable analysis of patient features associated with CRKP ST258 infection in LTACH residents.
+
+```{r}
+options(OutDec="·")
+
+# univariate tests
+library(knitr)
+library(kableExtra)
+library(flextable)
+library(officer)
+
+source('scripts/get_model_matrix.R')
+source('scripts/prettify_names.R')
+
+sigfig <- function(vec, n=2){ 
+### function to round values to N significant digits
+# input:   vec       vector of numeric
+#          n         integer is the required sigfig  
+# output:  outvec    vector of numeric rounded to N sigfig
+
+formatC(signif(vec,digits=n), digits=n,format="fg", flag="#") 
+
+}      # end of function   sigfig
+
+dat = data.frame(t(read.delim('data/combined/infection_patient-kleborate.tsv')))
+inf = as.character(dat$infection)
+dat = data.frame(get_model_matrix())
+
+ocs = read.delim('data/outcomes/outcomes.tsv')
+ocs = ocs[rownames(dat),]
+names(ocs) = capitalize(names(ocs))
+ocs$Blood = ifelse(ocs$Blood == 'yes',1,0)
+ocs$Resp = ifelse(ocs$Resp == 'yes',1,0)
+ocs$Urine = ifelse(ocs$Urine == 'yes',1,0)
+colnames(ocs) = c('Infection','Blood','Respiratory','Urinary')
+
+ltach = read.delim('data/ltachs.tsv')
+ltach = ltach[rownames(dat),]
+names(ltach) = rownames(dat)
+
+#pt = cbind(LTACH=ltach,ocs,dat[,1:50])
+pt = cbind(ocs,dat[,1:50])
+
+colnames(pt) = prettify_names(colnames(pt))
+
+pt_cont = pt[,c('Infection','Length of stay before culture','Age')]
+pt_bin = pt[,!colnames(pt) %in% c('Length of stay before culture','Age')]
+
+pt_table = data.frame(matrix(NA,nrow=(ncol(pt)-1),ncol=9))
+names(pt_table) = c('Variable',
+                    paste0('Infection (n=',sum(pt$Infection == 'yes'),')'),
+                    paste0('Colonization (n=',sum(pt$Infection == 'no'),')'),
+                    'OR (95% CI)','P value',
+                    'Resp OR (95% CI)','Resp P value',
+                    'Urine OR (95% CI)','Urine P value')
+
+for(i in 2:ncol(pt)){
+  # if(colnames(pt)[i] == 'LTACH'){
+  #   kruskal.test(Infection ~ LTACH, pt)
+  # }else
+  if(colnames(pt)[i] %in% c('Length of stay before culture','Age')){
+    s_inf = summary(pt[,i][pt$Infection == 'yes'])
+    s_col = summary(pt[,i][pt$Infection == 'no'])
+    wt = wilcox.test(pt_bin[pt_bin$Infection == 'yes',i],
+                     pt_bin[pt_bin$Infection == 'no',i])
+    r_wt = wilcox.test(pt_bin[pt_bin$Infection == 'yes' & ocs$Respiratory == 1,i],
+                       pt_bin[pt_bin$Infection == 'no' & ocs$Respiratory == 1,i])
+    u_wt = wilcox.test(pt_bin[pt_bin$Infection == 'yes' & ocs$Urinary == 1,i],
+                       pt_bin[pt_bin$Infection == 'no' & ocs$Urinary == 1,i])
+    pt_table[i-1,] = c(
+      paste0(colnames(pt)[i], ', median (IQR)'),
+      paste0(sigfig(s_inf[3],2),' (',sigfig(s_inf[2],2),'-',
+             sigfig(s_inf[5],2),')'),
+            paste0(sigfig(s_col[3],2),' (',sigfig(s_col[2],2),'-',
+             sigfig(s_col[5],2),')'),
+      '-',
+      sigfig(wt$p.value,2),
+      '-',
+      sigfig(r_wt$p.value,2),
+      '-',
+      sigfig(u_wt$p.value,2)
+    )
+  }else{
+    inf_bool = pt$Infection == 'yes' & pt[,i] == 1
+    col_bool = pt$Infection == 'no' & pt[,i] == 1
+    ft = fisher.test(pt$Infection,pt[,i])
+    est = paste0(round(ft$estimate,2),' (',
+             round(ft$conf.int[1],2),'-',round(ft$conf.int[2],2),')')
+    p = sigfig(ft$p.value,2)
+    
+    if(sum(ocs$Respiratory == 1 & pt[,i] == 0) == 0 | 
+       sum(ocs$Respiratory == 1 & pt[,i] == 1) == 0){
+      r_ft = r_est = r_p = '-'
+    }else{
+      r_ft = fisher.test(pt$Infection[ocs$Respiratory == 1],pt[ocs$Respiratory == 1,i])
+      r_est = paste0(round(r_ft$estimate,2),' (',
+              round(r_ft$conf.int[1],2),'-',round(r_ft$conf.int[2],2),')')
+      r_p = sigfig(r_ft$p.value,2)
+    }
+    
+    if(sum(ocs$Urinary == 1 & pt[,i] == 0) == 0 | 
+       sum(ocs$Urinary == 1 & pt[,i] == 1) == 0){
+      u_ft = u_est = u_p = '-'
+    }else{
+      u_ft = fisher.test(pt$Infection[ocs$Urinary == 1],pt[ocs$Urinary == 1,i])
+      u_est = paste0(round(u_ft$estimate,2),' (',
+               round(u_ft$conf.int[1],2),'-',round(u_ft$conf.int[2],2),')')
+      u_p = sigfig(u_ft$p.value,2)
+    }
+
+    if(colnames(pt)[i]=='Blood') est = p = '-'
+    pt_table[i-1,] = c(
+      colnames(pt)[i],
+      paste0(sum(inf_bool),' (',round(mean(inf_bool[pt$Infection == 'yes']),2)*100,'%)'),
+      paste0(sum(col_bool),' (',round(mean(col_bool[pt$Infection == 'no']),2)*100,'%)'),
+      est,
+      p,
+      r_est,
+      r_p,
+      u_est,
+      u_p
+    )
+  }
+}
+
+pt_table$Variable = c(paste(pt_table$Variable[1:3],'culture'),pt_table$Variable[4:nrow(pt_table)])
+
+pt_table$Variable = gsub(' \\(past 30 days\\)','',pt_table$Variable)
+
+new_names = gsub('Resp |Urine ','',colnames(pt_table))
+names(new_names) = colnames(pt_table)
+new_names[1:3] = ''
+ft = flextable(pt_table) %>% align(align='center',part='header') %>% 
+  set_header_labels(values=new_names) %>%
+  add_header_row(values=c(colnames(pt_table)[1:3],'All','All','Respiratory','Respiratory','Urinary','Urinary')) %>%
+  merge_at(i=1,j=4:5,part='header') %>% merge_at(i=1,j=6:7,part='header') %>% merge_at(i=1,j=8:9,part='header') %>% align(align='center',part='header') %>% bold(part='header') %>%
+  fontsize(size=12,i=1,part='header') %>% hline(i=1,part='header',border=fp_border()) %>% theme_box() #%>% autofit() 
+```
+
+```{r}
+ft %>%
+  footnote(.,i=c(4),j=c(1),
+         value=as_paragraph(c('LTACH=long-term acute care hospital')),
+         ref_symbols = c('1')) %>%
+  footnote(.,i=c(5,6),j=c(1,1),
+         value=as_paragraph(c('IQR=interquartile range')),
+         ref_symbols = c('2')) %>%
+  footnote(.,i=c(15),j=c(1),
+         value=as_paragraph(c('Anoxic brain injury or cerebrovascular accident (CVA) causing paresis')),
+         ref_symbols = c('3')) %>%
+  footnote(.,i=c(17),j=c(1),
+         value=as_paragraph(c('BMI ≥30 kg/m^2')),
+         ref_symbols = c('4')) %>%
+  footnote(.,i=c(18),j=c(1),
+         value=as_paragraph(c('BMI ≤18.5 kg/m^2')),
+         ref_symbols = c('5')) %>%
+  footnote(.,i=c(19),j=c(1),
+         value=as_paragraph(c('Solid organ transplant or hematopoeitic stem cell transplant')),
+         ref_symbols = c('6')) %>%
+  footnote(.,i=c(21),j=c(1),
+         value=as_paragraph(c('Stage IV or dialysis')),
+         ref_symbols = c('7')) %>%
+  footnote(.,i=c(22),j=c(1),
+         value=as_paragraph(c('Chronic obstructive pulmonary disease (COPD) or chronic bronchitis')),
+         ref_symbols = c('8')) %>%
+    footnote(.,i=c(25:nrow(pt_table)),j=c(1),
+         value=as_paragraph(c('Receipt for ≥48 hours in the 30 days prior to culture')),
+         ref_symbols = c('9')) %>%
+    footnote(.,i=c(nrow(pt_table)-3),j=c(1),
+         value=as_paragraph(c('Aminoglycosides, cefepime, ceftazidime, fluoroquinolones, polymyxins, carbapenems, or piperacillin-tazobactam')),
+         ref_symbols = c(',10'))
+```
+
+```{r}
+all_dat = data.frame(t(read.delim('../2020-03-07_ml-inf-lr-all/data/combined/infection_patient-kleborate.tsv')))
+all_ocs = read.delim('../2020-03-07_ml-inf-lr-all/data/outcomes/outcomes.tsv')
+ocs = sapply(1:nrow(all_ocs),function(x) names(all_ocs)[which(all_ocs[x,2:4] == 'yes')+1])
+names(ocs) = rownames(all_ocs)
+ocs = ocs[rownames(all_dat)]
+st = all_dat$ST[names(ocs)]
+print('infection')
+fisher.test(all_dat$infection,all_dat$ST)$p.value
+print('oc')
+fisher.test(ocs,st)$p.value
+pvals = rep(NA,ncol(all_dat))
+names(pvals) = colnames(all_dat)
+for(i in names(all_dat)){
+  feat = all_dat[,i]
+  if(i %in% c('LOSbeforeCx','age')){
+    pvals[i] = (wilcox.test(as.numeric(feat[all_dat$ST=='ST258']),
+                      as.numeric(feat[all_dat$ST!='ST258']))$p.value)
+  }else if(i == 'ST'){
+    break
+  }else if(i == 'infection'){
+    next
+  }else{
+    pvals[i] = (fisher.test(all_dat$ST,feat)$p.value)
+  }
+}
+sort(pvals[pvals < 0.05])
+#sort(p.adjust(pvals[!is.na(pvals)],method = 'BH'))
+```
+
+**Table S2:** Infection status and anatomic site of isolation by CRKP sequence type.
+
+```{r}
+cts_inf = table(all_dat$infection,all_dat$ST)
+rownames(cts_inf) = c('Colonization','Infection')
+cts_ocs = table(ocs,st)
+rownames(cts_ocs) = c('Blood','Respiratory','Urinary')
+
+cts = data.frame(cbind(t(table(paste(all_dat$infection,ocs),all_dat$ST))))
+cts[,'Total (%)'] = paste0(rowSums(cts),
+                  ' (',
+                  round(rowSums(cts)/
+                          sum(cts)*100,1),
+                  ')')
+  
+names_df = names(cts)
+cts = data.frame(cbind('Sequence type'=rownames(cts),cts))
+names(cts) = c('Sequence Type',names_df)
+flextable(cts) %>%
+  set_header_labels(values=list('Sequence Type'='','no.resp'='Respiratory', 'no.urine'='Urinary', 'yes.blood'='Blood', 'yes.resp'='Respiratory', 'yes.urine'='Urinary','Total (%)' = '')) %>%
+  add_header_row(values=c('Sequence Type','Colonization','Colonization','Infection','Infection','Infection','Total (%)')) %>%
+  merge_at(i=1,j=2:3,part='header') %>% merge_at(i=1,j=4:6,part='header') %>% align(align='center',part='header') %>% bold(part='header') %>%
+  fontsize(size=12,i=1,part='header') %>% hline(i=1,part='header',border=fp_border()) %>% theme_box() #%>% autofit() 
+```
+

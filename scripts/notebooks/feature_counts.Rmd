@@ -1,0 +1,45 @@
+---
+title: "Get feature counts"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+for(i in list.files('../data/combined',full.names = T)){
+  print(i)
+  print(dim(read.delim(i)))
+}
+```
+
+```{r}
+patient = read.delim('../data/features/patient/patient_features.tsv')
+snps = read.delim('../data/features/genomic/snps.tsv')
+indels = read.delim('../data/features/genomic/indels.tsv')
+insertions = read.delim('../data/features/genomic/insertions.tsv')
+pangenome = read.delim('../data/features/genomic/pangenome.tsv')
+```
+
+```{r}
+print('patient')
+nrow(patient)
+print('snps')
+nrow(snps)
+print('indels')
+nrow(indels)
+print('IS elements')
+nrow(insertions)
+print('pangenome genes')
+nrow(pangenome)
+print('all genomic')
+nrow(snps) + nrow(indels) + nrow(insertions) + nrow(pangenome)
+print('patient + genomic')
+nrow(snps) + nrow(indels) + nrow(insertions) + nrow(pangenome) + nrow(patient)
+```
+
+```{r}
+rownames(patient)
+```
+

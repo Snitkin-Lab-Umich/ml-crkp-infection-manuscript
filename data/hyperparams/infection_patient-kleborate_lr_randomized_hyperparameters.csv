@@ -1,0 +1,12 @@
+param,val,model
+cost,0.00000000001,L2_Logistic_Regression
+cost,0.0000000001,L2_Logistic_Regression
+cost,0.000000001,L2_Logistic_Regression
+cost,0.00000001,L2_Logistic_Regression
+cost,0.0000001,L2_Logistic_Regression
+cost,0.000001,L2_Logistic_Regression
+cost,0.00001,L2_Logistic_Regression
+cost,0.0001,L2_Logistic_Regression
+cost,0.001,L2_Logistic_Regression
+cost,0.01,L2_Logistic_Regression
+cost,0.025,L2_Logistic_Regression

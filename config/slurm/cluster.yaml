@@ -1,0 +1,37 @@
+__default__:
+  jobname: "{rule}.{wildcards}"
+  nodes: 1
+  ntaskspernode: 1
+  cpuspertask: 1
+  mempercpu: "1gb"
+  time: "1:00:00"
+  account: "esnitkin1"
+  partition: "standard"
+  mailuser: "zenalapp@umich.edu"
+  mailtype: "BEGIN,END,FAIL"
+  output: "logfiles/%x-%j.out"
+
+prep_snps:
+  cpuspertask: 1
+  mempercpu: "24gb"
+  time: "10:00:00"
+
+machine_learning:
+  mempercpu: "1500mb"
+  time: "15:00"
+
+summarize_results:
+  mempercpu: "1gb"
+
+plot_importances:
+  mempercpu: "2gb"
+
+merge_outcome_features:
+  mempercpu: "10gb"
+
+prep_insertions:
+  mempercpu: "10gb"
+
+permutation_importance:
+  time: "5:00:00"
+  nodes: 4

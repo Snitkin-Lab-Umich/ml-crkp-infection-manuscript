@@ -69,7 +69,7 @@ p2 = ggplot(data = source_aucs, aes(x = feature, y = auprc, fill = source)) +
 source_auc_summary = aggregate(auprc~dat,source_aucs,summary)
 source_auc_summary
 
-pdf('results/figures/aucs/aurocs.pdf',width = 10,height = 5)
+pdf('results/figures/aucs/auprcs.pdf',width = 10,height = 5)
 plot_grid(p1,p2,labels = 'AUTO',rel_widths = c(0.6,0.4),axis = 'b',align = 'hv')
 dev.off()
 

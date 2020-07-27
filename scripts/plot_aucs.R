@@ -6,7 +6,7 @@ library(grid)
 source('scripts/geom_boxplot2_base_r_look.R')
 source('scripts/build_polygon.R')
 
-options(OutDec="·")
+#options(OutDec="·")
 
 aucs = read.delim('results/test_aucs.tsv',sep=' ')
 

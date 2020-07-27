@@ -6,7 +6,7 @@ library(grid)
 source('scripts/geom_boxplot2_base_r_look.R')
 source('scripts/build_polygon.R')
 
-options(OutDec="·")
+#options(OutDec="·")
 
 # get baseline for auprc
 dat = read.delim('data/combined/infection_patient-kleborate.tsv')

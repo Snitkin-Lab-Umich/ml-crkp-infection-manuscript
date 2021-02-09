@@ -1,0 +1,12 @@
+dataset: data/infection_patient-kleborate.csv  
+groups: data/ltachs.csv
+outcome_colname: infection
+ml_methods:
+ - glmnet
+ - rf
+ #- rpart2
+ - svmRadial
+ #- xgbTree
+kfold: 5
+ncores: 36
+nseeds: 100

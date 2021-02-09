@@ -1,0 +1,79 @@
+---
+title: "Compare ML AUCs"
+author: "Zena Lapp"
+date: "1/6/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(colorspace)
+
+l2 <- read.delim('results/test_aucs.tsv',sep = ' ', ) %>% filter(dat == 'infection_patient-kleborate_lr') %>%
+  mutate(method = 'l2') %>% rename(AUC = auc) %>% select(AUC, method, seed)
+others <- read_csv('results/performance_results.csv') %>% select(AUC, method, seed)
+perf <- bind_rows(l2, others)
+
+# base r boxplot look
+geom_boxplot2 <- function(mapping = NULL, data = NULL, stat = "boxplot", position = "dodge2", 
+                          ..., outlier.colour = NULL, outlier.color = NULL, outlier.fill = NULL, 
+                          outlier.shape = 1, outlier.size = 1.5, outlier.stroke = 0.5, 
+                          outlier.alpha = NULL, notch = FALSE, notchwidth = 0.5, varwidth = FALSE, 
+                          na.rm = FALSE, show.legend = NA, inherit.aes = TRUE,
+                          linetype = "dashed"){
+  list(
+    geom_boxplot(mapping = mapping, data = data, stat = stat, position = position,
+                 outlier.colour = outlier.colour, outlier.color = outlier.color, 
+                 outlier.fill = outlier.fill, outlier.shape = outlier.shape, 
+                 outlier.size = outlier.size, outlier.stroke = outlier.stroke, 
+                 outlier.alpha = outlier.alpha, notch = notch, 
+                 notchwidth = notchwidth, varwidth = varwidth, na.rm = na.rm, 
+                 show.legend = show.legend, inherit.aes = inherit.aes, 
+                 linetype = linetype, ...),
+    stat_boxplot(aes(ymin = ..lower.., ymax = ..upper..), outlier.shape = 1) ,
+    stat_boxplot(geom = "errorbar", width=0.5, aes(ymin = ..ymax..)) ,
+    stat_boxplot(geom = "errorbar", width=0.5, aes(ymax = ..ymin..)) ,
+    theme_bw(), 
+    theme(plot.title = element_text(hjust = 0.5,  
+                                    size = 14,
+                                    face = "bold"),
+          panel.border = element_rect(linetype = "solid",
+                                      colour = "black", fill = "NA", size = 0.5))
+  )
+}
+```
+
+```{r}
+perf_long <- perf %>% pivot_wider(names_from = method, values_from = AUC) %>% select(-seed)
+#2 * min(fraction of AUROC differences ≥ 0, fraction of AUROC differences ≤ 0)
+
+sapply(perf_long, function(x){
+  sapply(perf_long, function(y){
+    2*min(c(mean((x - y) >= 0), mean((x - y) <= 0)))
+  })
+})
+
+
+```
+
+
+```{r}
+ model_compare_boxplot <- perf %>% 
+  mutate(method=replace(method, method=='glmnet', 'Elastic net'),
+         method=replace(method, method=='l2', 'L2 logistic\nregression'),
+         method=replace(method, method=='rf', 'Random forest'),
+         method=replace(method, method=='svmRadial', 'SVM'),
+         method=factor(method, levels = c('L2 logistic\nregression', 'Elastic net', 'SVM', 'Random forest'))) %>%
+  ggplot(aes(x = method, y = AUC, fill = method)) + geom_boxplot2() +
+  labs(x = 'Machine learning method', y = 'AUROC', fill = 'Method') + 
+  scale_fill_manual(values = c('#756bb1',lighten('#756bb1',0.3),lighten('#756bb1',0.6),lighten('#756bb1',0.9))) + 
+  geom_hline(yintercept=0.5, lty=3) + theme(text = element_text(size=15)) 
+
+ggsave('figures/model_compare_boxplot.pdf',plot = model_compare_boxplot)
+```
+
+

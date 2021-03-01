@@ -1,15 +1,27 @@
-# Plot permutation importance (Figures 4, S5-7)
-
 library(tidyverse)
 library(cowplot)
 library(grid)
+library(ggplotify)
 source('scripts/geom_boxplot2_base_r_look.R')
 source('scripts/prettify_names.R')
 
+# plot_diffs = function(diffs,outfile,cutoff=0.25){
+#   p = diffs %>% pivot_longer(cols = everything()) %>% 
+#     ggplot(aes(x=reorder(name, value, FUN=quantile,prob=0.25),y=value)) +
+#     geom_boxplot2() +
+#     ylab('Test AUROC - mean permuted AUROC') + xlab('') + theme_bw() +
+#     coord_flip() +
+#     geom_hline(yintercept = 0, col='red') +
+#     geom_vline(xintercept = ncol(diffs) - n_above_zero(diffs,cutoff=cutoff) + 0.5, lty=3)
+#     #theme(axis.text.x = element_text(angle = 20, hjust = 0, vjust = 0)) #hjust=1)) #,hjust = 0, vjust = 0,)) + 
+#   ggsave(plot = p,filename = outfile, width = 10,height = 10)
+# }
+
 n_above_zero = function(diffs,cutoff=0.25){
-  diffs %>% 
-    dplyr::summarize(first=quantile(value,probs = cutoff)) %>% 
+  diffs %>% #pivot_longer(cols = everything()) %>% group_by(name) %>% 
+    dplyr::summarize(first=quantile(value,probs = cutoff)) %>% #,median=median(value),mean=mean(value)) %>%
     arrange(desc(first)) %>% filter(first>0) %>% nrow() 
+    #print(n=Inf) 
 }
 
 files = list.files('results/permutation_importance',pattern='1_1.tsv',full.names = T)
@@ -25,6 +37,13 @@ assn$feature = prettify_names(assn$feature)
 assn$dat = gsub('_lr','',assn$dat)
 
 patient = unique(c(sapply(names(diffs_all), function(x) prettify_names(colnames(get_model_matrix(paste0('data/combined/',gsub('-kleborate','',x),'.tsv')))))))
+
+# summarize_data = function(d, cutoff=0.25){
+#   diffs_all[[d]] %>%
+#     pivot_longer(cols = everything()) %>% group_by(name) %>% 
+#     dplyr::summarize(first=quantile(value,probs = 0, cutoff),mean=mean(value)) %>% 
+#     mutate(dat=d)
+# }
 
 make_long = function(d){
   diffs_all[[d]] %>%
@@ -58,7 +77,7 @@ alldat$assn = sapply(alldat$pos_frac, function(x){
 alldat$patient = ifelse(alldat$name %in% patient,'Patient','Genomic')
 
 plot_diffs = function(alldat,dat_name, cutoff=0.25){
-  outfile = paste0('results/figures/importances/',dat_name,'_perm-imp.pdf')
+  outfile = paste0('results/figures/importances/',dat_name,'_perm-imp.tiff')
   dat_sub = alldat %>% filter(dat == dat_name)
   p = dat_sub %>% 
     ggplot(aes(x=reorder(name, value, FUN=quantile,prob=cutoff),y=value,fill=assn)) +
@@ -77,11 +96,12 @@ plot_diffs = function(alldat,dat_name, cutoff=0.25){
     labs(fill = "Association"))
   p_shape = dat_sub %>%
     ggplot() + geom_point(aes(x=0,y=reorder(name, value, FUN=quantile,prob=cutoff),shape=patient)) + 
-    scale_shape_manual(values = c(19,15)) + coord_cartesian(xlim = c(-0.0405,0.05)) +
+    scale_shape_manual(values = c(19,15)) + coord_cartesian(xlim = c(-0.06,0.05)) + #c(-0.0405,0.05)) +
     theme_void() + theme(legend.position = 'none') 
   p_shape_leg = get_legend(dat_sub %>%
     ggplot() + geom_point(aes(x=0,y=reorder(name, value, FUN=quantile,prob=cutoff),shape=patient),size=3) + 
     scale_shape_manual(values = c(19,15)) + theme_bw() + labs(shape = "Feature type"))
+  #theme(axis.text.x = element_text(angle = 20, hjust = 0, vjust = 0)) #hjust=1)) #,hjust = 0, vjust = 0,)) 
   comb = ggdraw(p) + draw_plot(p_shape,y = 0.018, scale = 0.948)
   
   comb_and_leg = plot_grid(comb,
@@ -89,12 +109,25 @@ plot_diffs = function(alldat,dat_name, cutoff=0.25){
                            nrow=1,rel_widths = c(0.8,0.2))
   
   ggsave(plot = comb_and_leg,filename = outfile, width = 10,height = 10)
+  return(comb_and_leg)
 }
 
-for(dat_name in names(diffs_all)){
-  print(dat_name)
-  plot_diffs(alldat,dat_name)
-}
+# for(dat_name in names(diffs_all)){
+#   print(dat_name)
+#   plot_diffs(alldat,dat_name)
+# }
+
+p_all <- plot_diffs(alldat, names(diffs_all)[1]) 
+p_resp <- plot_diffs(alldat, names(diffs_all)[2]) 
+p_urine <- plot_diffs(alldat, names(diffs_all)[3])
+
+ggsave('results/figures/importances/perm_imp_comb.pdf',
+       plot_grid(p_all, p_resp, p_urine, labels = c('A Overall','B Resp','C Urinary'),ncol = 3), width = 25, height = 10)
+
+ggsave('results/figures/importances/perm_imp_comb.tiff',
+       plot_grid(p_all, p_resp, p_urine, labels = c('A Overall','B Resp','C Urinary'),ncol = 3), width = 25, height = 10)
+
+
 
 
 alldat$name = trimws(alldat$name)
@@ -143,13 +176,19 @@ sumdat$grp = sapply(sumdat$name, function(x){
     }else{
       return('4ur')
     }
-  }else{ 
+  }else{ #if(sum(!d$r_imp[d$feature == x]) == 3 & sum(!d$u_imp[d$feature == x]) == 3){
     return('3a')
   }
 })
+# %>% arrange(grp,desc(diff))
+
+# diffs = (sumdat$mean[sumdat$dat == 'infection-resp_patient-kleborate'] - 
+#            sumdat$mean[sumdat$dat == 'infection-urine_patient-kleborate'])
+# sumdat$diff[sumdat$dat == 'infection-resp_patient-kleborate'] = diffs
+# sumdat$diff[sumdat$dat == 'infection-urine_patient-kleborate'] = diffs
 
 sumdat$dat = factor(sumdat$dat,levels=c('infection-resp_patient-kleborate','infection-urine_patient-kleborate','infection_patient-kleborate'))
-sumdat = sumdat %>% filter(!is.na(assn)) %>% group_by(grp) %>% arrange(grp,desc(mean))
+sumdat = sumdat %>% filter(!is.na(assn)) %>% group_by(grp) %>% arrange(grp,desc(mean))#,desc(diff))
 sumdat$name = factor(sumdat$name,levels=unique(sumdat$name))
 
 sumdat = sumdat %>% mutate(imp=first > 0)
@@ -160,27 +199,34 @@ point_labs = c('Respiratory','Urinary','All')
 outcome_labels=c('Colonization','Infection')
 
 #
-p = sumdat %>% filter(first > 0) %>% ggplot(aes(mean,name,col=dat,shape=patient,fill=fill)) + 
-  xlab('Mean difference between test and permuted AUROC') + ylab('') +
+p = sumdat %>% filter(first > 0) %>% ggplot(aes(mean,name,col=dat,shape=patient,fill=fill)) + #,alpha=imp)) + 
+  xlab('Mean difference between test\nand permuted AUROC') + ylab('') +
   geom_vline(aes(xintercept=0)) + 
   geom_errorbarh(aes(xmin=o05, xmax=o95),height = 0,linetype = "dotted",alpha=0.5,size=1) +
-  geom_errorbarh(aes(xmin=first, xmax=third),height = 0,alpha=0.5,size=1) +
+  geom_errorbarh(aes(xmin=first, xmax=third),height = 0,alpha=0.5,size=1) +#,linetype = "dotted") +
   geom_point(size=3,stroke=1) +
   scale_shape_manual(values=c(21,22)) + 
+  xlim(c(-0.04,0.12)) +
   theme_bw() + 
-  theme(legend.position='left') +
+  theme(legend.position='left', axis.title.x = element_text(size=10)) +
   scale_y_discrete(position = "right") + 
   scale_color_manual(values = point_cols, labels = point_labs) +
   scale_fill_manual(values = c('white',point_cols[1],'white',point_cols[2],'white',point_cols[3]),
                     labels = outcome_labels, 
                     breaks = c('d1col','d1inf')
                     ) +
-  guides(fill = guide_legend(override.aes=list(shape=21,fill=c('white','black'))),
-         color = guide_legend(order=1)) + 
+  #scale_alpha_discrete(range = c(0.5, 1)) + 
+  guides(fill = guide_legend(override.aes=list(shape=21,fill=c('white','black')),order = 3, ncol = 1, title.position = 'top'),
+         color = guide_legend(order=1, ncol = 1, title.position = 'top'), 
+         shape = guide_legend(order=2, ncol = 1, title.position = 'top'),
+         linetype = guide_legend(ncol = 1, title.position = 'top')) + 
   labs(shape='Feature type (shape)',fill='Associated with (fill)',color='Anatomic site (color)') +
   geom_hline(aes(yintercept=8.5), linetype='dashed') +
   geom_hline(aes(yintercept=18.5), linetype='dashed') + geom_line(aes(0,0,linetype=all_imp)) +
-  scale_linetype_discrete(name = "Confidence interval", labels = c('25%','95%'))
+  #labs(linetype='Confidence interval') +
+  scale_linetype_discrete(name = "Quantile", labels = c('25%-75%','5%-95%')) #+
+  # theme(legend.position = 'top',legend.justification = "right",
+  #       legend.key.size = unit(5,'mm'))
   
 
 # Create text
@@ -191,13 +237,21 @@ rgrob <- grobTree(textGrob("Associated in\nrespiratory analysis", x=-0.01,  y=0.
 agrob <- grobTree(textGrob("Associated in\noverall analysis or \nboth site-specific analyses", x=-0.01,  y=0.245, hjust=1,
                            gp=gpar(fontsize=11, fontface="italic")))
 # Plot
-p1 = p + annotation_custom(ugrob) + annotation_custom(rgrob) 
+p1 = p + annotation_custom(ugrob) + annotation_custom(rgrob) + #+ annotation_custom(agrob) 
+  theme(plot.margin = unit(c(5.5, 5.5, 5.5, 100), "points"))
 
 # Code to override clipping
 gt <- ggplot_gtable(ggplot_build(p1))
 gt$layout$clip[gt$layout$name == "panel"] <- "off"
 
-pdf('results/figures/importances/urine-resp_perm-imps.pdf',height = 10, width = 10)
-grid.draw(gt)
-dev.off()
+# pdf('results/figures/importances/urine-resp_perm-imps.pdf',height = 10, width = 10)
+# ggsave('results/figures/importances/urine-resp_perm-imps.pdf',as.ggplot(gt),height = 5, width = 8.1)
+ggsave('results/figures/importances/urine-resp_perm-imps.pdf',
+       p,#as.ggplot(gt),
+       height = 5, width = 6.87, units = 'in', dpi = 300)
+
+ggsave('results/figures/importances/urine-resp_perm-imps.tiff',
+       p,#as.ggplot(gt),
+       height = 5, width = 6.87, units = 'in', dpi = 300)
+# dev.off()
 

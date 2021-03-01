@@ -1,4 +1,4 @@
-# Machine learning models to identify patient and microbial genetic factors associated with carbapenem-resistant Klebsiella pneumoniae infection
+# Patient and microbial genomic factors associated with carbapenem-resistant Klebsiella pneumoniae extraintestinal colonization and infection  
 
 Code and some data relevant to this manuscript. Preprint [here](https://www.medrxiv.org/content/10.1101/2020.07.06.20147306v3).
 
